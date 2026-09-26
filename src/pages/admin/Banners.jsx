@@ -82,24 +82,35 @@ export default function Banners() {
     setShowModal(true);
   };
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+ const handleImageUpload = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB limit.');
-      return;
-    }
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File size exceeds 5MB limit.');
+    return;
+  }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormFields(prev => ({
-        ...prev,
-        imageUrl: reader.result
-      }));
-    };
-    reader.readAsDataURL(file);
-  };
+  const uploadData = new FormData();
+  uploadData.append('image', file);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/upload`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: uploadData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Upload failed');
+
+    setFormFields(prev => ({
+      ...prev,
+      imageUrl: data.url
+    }));
+  } catch (err) {
+    alert('Image upload failed: ' + err.message);
+  }
+};
 
   const handleSaveBanner = async (e) => {
     e.preventDefault();

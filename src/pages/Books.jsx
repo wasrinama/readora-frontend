@@ -10,6 +10,10 @@ export default function Books() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalBooks, setTotalBooks] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const { wishlistItems } = useWishlist();
   const showWishlistOnly = searchParams.get('wishlist') === 'true';
   
@@ -68,43 +72,65 @@ export default function Books() {
     setLocalSearch(searchQuery);
   }, [searchQuery]);
 
+  const fetchBooks = async (pageNum = 1, append = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+    try {
+      let url = `${API_BASE_URL}/books`;
+      const params = [`page=${pageNum}`, 'limit=12'];
+      if (searchQuery) params.push(`search=${encodeURIComponent(searchQuery)}`);
+      if (selectedCategory && selectedCategory !== 'All') params.push(`category=${encodeURIComponent(selectedCategory)}`);
+      if (selectedLanguage && selectedLanguage !== 'All') params.push(`language=${encodeURIComponent(selectedLanguage)}`);
+      
+      url += `?${params.join('&')}`;
+
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setBooks(data);
+          setTotalBooks(data.length);
+          setTotalPages(1);
+        } else {
+          const incoming = data.books || [];
+          setBooks(prev => (append ? [...prev, ...incoming] : incoming));
+          setTotalPages(data.totalPages || 1);
+          setTotalBooks(data.totalBooks || incoming.length);
+        }
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      console.error("Error fetching books:", error);
+      if (!append) setBooks([]);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     if (showWishlistOnly) {
       setBooks(wishlistItems);
+      setTotalBooks(wishlistItems.length);
       setLoading(false);
       return;
     }
 
-    const fetchBooks = async () => {
-      setLoading(true);
-      try {
-        let url = `${API_BASE_URL}/books`;
-        const params = [];
-        if (searchQuery) params.push(`search=${encodeURIComponent(searchQuery)}`);
-        if (selectedCategory && selectedCategory !== 'All') params.push(`category=${encodeURIComponent(selectedCategory)}`);
-        if (selectedLanguage && selectedLanguage !== 'All') params.push(`language=${encodeURIComponent(selectedLanguage)}`);
-        
-        if (params.length) {
-          url += `?${params.join('&')}`;
-        }
-
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          setBooks(data);
-        } else {
-          throw new Error();
-        }
-      } catch (error) {
-        console.error("Error fetching books:", error);
-        setBooks([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBooks();
+    setPage(1);
+    fetchBooks(1, false);
   }, [searchQuery, selectedCategory, selectedLanguage, showWishlistOnly, wishlistItems]);
+
+  const handleLoadMore = () => {
+    if (page < totalPages && !loadingMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchBooks(nextPage, true);
+    }
+  };
 
   const handleCategoryChange = (category) => {
     const params = new URLSearchParams(searchParams);
@@ -148,7 +174,9 @@ export default function Books() {
           <p className="text-sm text-slate-400 light:text-slate-500 mt-1">
             {showWishlistOnly 
               ? `Showing ${books.length} saved books in your wishlist`
-              : `Showing ${books.length} premium books available for fast ordering`
+              : totalBooks > 0
+                ? `Showing ${books.length} of ${totalBooks} books available for fast ordering`
+                : `Showing ${books.length} books available for fast ordering`
             }
           </p>
         </div>
@@ -222,26 +250,40 @@ export default function Books() {
               ))}
             </div>
           ) : books.length > 0 ? (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6"
-            >
-              <AnimatePresence>
-                {books.map((book) => (
-                  <motion.div
-                    key={book._id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.2 }}
+            <>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6"
+              >
+                <AnimatePresence>
+                  {books.map((book) => (
+                    <motion.div
+                      key={book._id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <BookCard book={book} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+
+              {!showWishlistOnly && page < totalPages && (
+                <div className="flex justify-center mt-10">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="px-8 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm transition-all shadow-lg hover:shadow-brand-500/25 active:scale-95 disabled:opacity-50"
                   >
-                    <BookCard book={book} />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </motion.div>
+                    {loadingMore ? 'Loading More Books...' : `Load More Books (${books.length} of ${totalBooks})`}
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-20 glass-card p-10 flex flex-col items-center justify-center border border-white/5">
               <BookOpen className="h-16 w-16 text-slate-500 mb-4 animate-bounce" />

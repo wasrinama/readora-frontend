@@ -35,7 +35,7 @@ export default function Home() {
     const fetchBannersAndSettings = async () => {
       // 1. Fetch promotional banners
       try {
-        const res = await fetch(`${API_BASE_URL}/banners?t=${Date.now()}`);
+        const res = await fetch(`${API_BASE_URL}/banners`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -48,7 +48,7 @@ export default function Home() {
 
       // 2. Fetch fallback static banner
       try {
-        const res = await fetch(`${API_BASE_URL}/settings/book_store_hero_banner?t=${Date.now()}`);
+        const res = await fetch(`${API_BASE_URL}/settings/book_store_hero_banner`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.value) {

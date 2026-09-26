@@ -353,7 +353,7 @@ export default function BookManagement() {
     }));
   };
 
-  const handleCoverUpload = (e) => {
+  const handleCoverUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -362,14 +362,25 @@ export default function BookManagement() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
+    const uploadData = new FormData();
+    uploadData.append('image', file);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: uploadData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Upload failed');
+
       setFormFields(prev => ({
         ...prev,
-        coverImage: reader.result
+        coverImage: data.url
       }));
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      alert('Image upload failed: ' + err.message);
+    }
   };
 
   // Save Book Form (Add/Update)
